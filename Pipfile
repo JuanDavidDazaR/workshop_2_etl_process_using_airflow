@@ -20,6 +20,7 @@ jupyterlab = "*"
 python-dotenv = "*"
 sqlalchemy = "*"
 psycopg2-binary = "*"
+pandas-stubs = "*"
 
 [requires]
 python_version = "3"
