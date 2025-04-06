@@ -137,3 +137,5 @@ dask-worker-space
 # Ignore everything inside airflow except the dags folder
 airflow/*
 !airflow/dags/
+
+/test
