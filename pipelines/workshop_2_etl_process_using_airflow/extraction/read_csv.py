@@ -11,7 +11,7 @@ def read_csv_spotify():
         None: If the file cannot be read due to an error.
     """
     try:
-        df_spotify = pd.read_csv("../data/0_raw/spotify_dataset.csv")
+        df_spotify = pd.read_csv("../../../data/0_raw/spotify_dataset.csv")
         return df_spotify
     except FileNotFoundError:
         print("Error: File not found. Please check the file path.")

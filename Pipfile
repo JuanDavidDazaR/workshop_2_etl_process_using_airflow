@@ -21,6 +21,7 @@ python-dotenv = "*"
 sqlalchemy = "*"
 psycopg2-binary = "*"
 pandas-stubs = "*"
+prince = "*"
 
 [requires]
 python_version = "3"

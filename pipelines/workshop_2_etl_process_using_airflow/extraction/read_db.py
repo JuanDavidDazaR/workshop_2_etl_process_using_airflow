@@ -1,13 +1,14 @@
 """Module to read the Grammys from database.
 This module connects to the database and retrieves all records
 from the 'grammyAwards' table."""
+
 import os
 import sys
 import pandas as pd
-from pipelines.workshop_2_etl_process_using_airflow.\
-    db.db_conection import connect_db
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+from db.db_conection import connect_db
 
 
 def extract_grammy_database():
