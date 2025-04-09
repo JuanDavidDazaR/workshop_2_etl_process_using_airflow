@@ -146,3 +146,5 @@ Pipfile
 /test
 client_secrets.json
 saved_credentials.jsondeactivate
+client_secrets.json
+saved_credentials.jsondeactivate
