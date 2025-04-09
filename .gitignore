@@ -109,10 +109,11 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-client_secret.json
+client_secrets.json
 client_secret.json:Zone.Identifier
 settings.yaml
 saved_credentials.json
+saved_credentials.jsondeactivate
 
 
 # Spyder project settings

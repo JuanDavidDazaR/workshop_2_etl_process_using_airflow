@@ -64,6 +64,7 @@ def auth_drive():
         logger.error(f"Authentication error: {e}", exc_info=True)
         raise
 
+
 # Función para subir el DataFrame a Google Drive
 def store_to_drive(ti):
     """
@@ -72,13 +73,17 @@ def store_to_drive(ti):
     Args:
         ti: Task instance to pull file path from XCom.
     """
-    merged_file_path = ti.xcom_pull(task_ids='merge_spotify_grammy')
-    if not merged_file_path:
-        raise ValueError("No file path received from merge task")
+    merged_file_load_path = ti.xcom_pull(task_ids='load_to_db')
+    if not merged_file_load_path:
+        raise ValueError("No file path received from load_to_db task")
+
+    # Verificar que el archivo exista
+    if not os.path.exists(merged_file_load_path):
+        raise FileNotFoundError(f"Merged file not found: {merged_file_load_path}")
 
     # Leer el DataFrame combinado (como CSV)
-    logger.info(f"Leyendo DataFrame combinado desde: {merged_file_path}")
-    df = pd.read_csv(merged_file_path)
+    logger.info(f"Leyendo DataFrame combinado desde: {merged_file_load_path}")
+    df = pd.read_csv(merged_file_load_path)
 
     # Subir a Google Drive
     drive = auth_drive()
@@ -99,7 +104,7 @@ def store_to_drive(ti):
 
     # Limpiar el archivo temporal
     try:
-        os.remove(merged_file_path)
-        logger.info(f"Archivo temporal eliminado: {merged_file_path}")
+        os.remove(merged_file_load_path)
+        logger.info(f"Archivo temporal eliminado: {merged_file_load_path}")
     except Exception as e:
-        logger.warning(f"No se pudo eliminar el archivo temporal {merged_file_path}: {e}")
+        logger.warning(f"No se pudo eliminar el archivo temporal {merged_file_load_path}: {e}")
