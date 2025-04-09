@@ -15,6 +15,7 @@ db_name = os.getenv("DB_NAME")
 
 def create_database():
     """Create a PostgreSQL database if it does not exist."""
+    engine = None
     try:
         engine = connect_db("postgres")
         with engine.connect() as connection:
@@ -42,4 +43,5 @@ def create_database():
         print(f"Unexpected runtime error: {e}")
 
     finally:
-        engine.dispose()
+        if engine is not None:
+            engine.dispose()

@@ -109,6 +109,11 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+client_secret.json
+client_secret.json:Zone.Identifier
+settings.yaml
+saved_credentials.json
+
 
 # Spyder project settings
 .spyderproject
@@ -135,7 +140,6 @@ dmypy.json
 dask-worker-space
 
 # Ignore everything inside airflow except the dags folder
-airflow/*
-!airflow/dags/
-
+/airflow
+Pipfile
 /test
