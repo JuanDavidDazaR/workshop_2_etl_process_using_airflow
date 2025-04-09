@@ -26,7 +26,7 @@ def merge_spotify_grammy(ti):
         ti: Task instance to pull file paths from XCom.
 
     Returns:
-        str: Path to the temporary file where the merged DataFrame is saved.
+        str: Path to the temporary file where the merged DataFrame is saved (CSV).
     """
     spotify_file_path = ti.xcom_pull(task_ids='transform_spotify')
     grammy_file_path = ti.xcom_pull(task_ids='transform_grammy')
@@ -34,15 +34,18 @@ def merge_spotify_grammy(ti):
     if not spotify_file_path or not grammy_file_path:
         raise ValueError("Missing file paths from transform tasks")
 
-    # Leer los DataFrames transformados
+    # Leer los DataFrames transformados (como CSV)
     logger.info(f"Leyendo Spotify desde: {spotify_file_path}")
-    spotify_df = pd.read_parquet(spotify_file_path)
+    spotify_df = pd.read_csv(spotify_file_path)
     logger.info(f"Leyendo Grammy desde: {grammy_file_path}")
-    grammy_df = pd.read_parquet(grammy_file_path)
+    grammy_df = pd.read_csv(grammy_file_path)
 
     # Limpiar Spotify para el merge
     spotify_df['track_name'] = spotify_df['track_name'].str.lower().str.strip()
     spotify_df['artists'] = spotify_df['artists'].str.lower().str.strip()
+
+    # Limpiar Grammy para el merge
+    grammy_df['artist'] = grammy_df['artist'].str.lower().str.strip()
 
     # Realizar el merge
     merged_df = pd.merge(
@@ -59,9 +62,9 @@ def merge_spotify_grammy(ti):
     # Rellenar valores NaN en 'winner'
     merged_df['winner'] = merged_df['winner'].fillna(False)
 
-    # Guardar el resultado en un archivo temporal
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.parquet') as tmp_file:
-        merged_df.to_parquet(tmp_file.name, index=False)
+    # Guardar el resultado en un archivo temporal (como CSV)
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
+        merged_df.to_csv(tmp_file.name, index=False)
         merged_file_path = tmp_file.name
     logger.info(f"DataFrame combinado guardado en: {merged_file_path} con {len(merged_df)} filas")
 

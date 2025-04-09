@@ -3,6 +3,7 @@
 import logging
 import pandas as pd
 import os
+import tempfile
 from sqlalchemy.exc import SQLAlchemyError
 from src.db.db_conection import connect_db  # Reutilizamos la conexión existente
 
@@ -65,13 +66,18 @@ def load_to_db(ti):
     except SQLAlchemyError as e:
         logger.error(f"Error saving data to the database: {e}")
         raise
-    finally:
-        # Delete the temporary file only if it's different from our EDA file
-        if merged_file_path != eda_file_path:
-            try:
-                os.remove(merged_file_path)
-                logger.info(f"Temporary file deleted: {merged_file_path}")
-            except Exception as e:
-                logger.warning(f"Could not delete temporary file {merged_file_path}: {e}")
-    
-    return eda_file_path
+    # Guardar el resultado en un archivo temporal (como CSV)
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
+        merged_df.to_csv(tmp_file.name, index=False)
+        merged_file_load_path = tmp_file.name
+    logger.info(f"DataFrame combinado guardado en: {merged_file_path} con {len(merged_df)} filas")
+
+    # Limpiar archivos temporales
+    for file_path in [merged_file_load_path]:
+        try:
+            os.remove(file_path)
+            logger.info(f"Archivo temporal eliminado: {file_path}")
+        except Exception as e:
+            logger.warning(f"No se pudo eliminar el archivo temporal {file_path}: {e}")
+
+    return merged_file_path

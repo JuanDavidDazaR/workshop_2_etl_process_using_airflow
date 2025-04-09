@@ -1,13 +1,17 @@
+# src/store.py
+"""Module to store data in Google Drive."""
+
+import logging
+import pandas as pd
+import os
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 from dotenv import load_dotenv
 from pathlib import Path
-import os
-import pandas as pd
-import logging
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%d/%m/%Y %I:%M:%S %p")
+logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno desde .env en el directorio raíz
 env_path = Path(__file__).parent.parent.resolve() / ".env"
@@ -23,13 +27,13 @@ folder_id = os.getenv("FOLDER_ID")
 # Verificar que las variables estén definidas
 if not all([client_secrets_file, settings_file, credentials_file, folder_id]):
     raise ValueError("Faltan variables de entorno en .env. Verifica CONFIG_DIR, CLIENT_SECRETS_FILE, SETTINGS_FILE, CREDENTIALS_FILE y FOLDER_ID.")
-logging.info(f"Using folder_id: {folder_id}")
-logging.info(f"Using settings_file: {settings_file}")
+logger.info(f"Using folder_id: {folder_id}")
+logger.info(f"Using settings_file: {settings_file}")
 
 # Función para autenticar Google Drive
 def auth_drive():
     try:
-        logging.info("Starting Google Drive authentication process.")
+        logger.info("Starting Google Drive authentication process.")
         gauth = GoogleAuth()
         
         # Cargar settings.yaml explícitamente
@@ -38,32 +42,48 @@ def auth_drive():
         
         # Forzar el puerto 8081 antes de cualquier autenticación
         gauth.local_webserver_port = 8081
-        logging.info(f"Local webserver port configurado: {gauth.local_webserver_port}")
+        logger.info(f"Local webserver port configurado: {gauth.local_webserver_port}")
         
         if os.path.exists(credentials_file):
             gauth.LoadCredentialsFile(credentials_file)
             if gauth.access_token_expired:
-                logging.info("Access token expired, refreshing token.")
+                logger.info("Access token expired, refreshing token.")
                 gauth.Refresh()
             else:
-                logging.info("Using saved credentials.")
+                logger.info("Using saved credentials.")
         else:
-            logging.info("Saved credentials not found, performing web authentication.")
+            logger.info("Saved credentials not found, performing web authentication.")
             gauth.LocalWebserverAuth()
             gauth.SaveCredentialsFile(credentials_file)
-            logging.info("Local webserver authentication completed and credentials saved successfully.")
+            logger.info("Local webserver authentication completed and credentials saved successfully.")
 
         drive = GoogleDrive(gauth)
-        logging.info("Google Drive authentication completed successfully.")
+        logger.info("Google Drive authentication completed successfully.")
         return drive
     except Exception as e:
-        logging.error(f"Authentication error: {e}", exc_info=True)
+        logger.error(f"Authentication error: {e}", exc_info=True)
         raise
 
 # Función para subir el DataFrame a Google Drive
-def storing_merged_data(title, df):
+def store_to_drive(ti):
+    """
+    Store the merged dataset in Google Drive.
+
+    Args:
+        ti: Task instance to pull file path from XCom.
+    """
+    merged_file_path = ti.xcom_pull(task_ids='merge_spotify_grammy')
+    if not merged_file_path:
+        raise ValueError("No file path received from merge task")
+
+    # Leer el DataFrame combinado (como CSV)
+    logger.info(f"Leyendo DataFrame combinado desde: {merged_file_path}")
+    df = pd.read_csv(merged_file_path)
+
+    # Subir a Google Drive
     drive = auth_drive()
-    logging.info(f"Storing {title} on Google Drive.")
+    title = "spotify_grammy_merged.csv"
+    logger.info(f"Storing {title} on Google Drive.")
     
     csv_file = df.to_csv(index=False)
     
@@ -75,9 +95,11 @@ def storing_merged_data(title, df):
     
     file.SetContentString(csv_file)
     file.Upload()
-    logging.info(f"File {title} uploaded successfully.")
+    logger.info(f"File {title} uploaded successfully to Google Drive.")
 
-# Prueba manual
-if __name__ == "__main__":
-    df = pd.DataFrame({"song": ["Song A", "Song B"], "artist": ["Artist 1", "Artist 2"]})
-    storing_merged_data("test_upload.csv", df)
+    # Limpiar el archivo temporal
+    try:
+        os.remove(merged_file_path)
+        logger.info(f"Archivo temporal eliminado: {merged_file_path}")
+    except Exception as e:
+        logger.warning(f"No se pudo eliminar el archivo temporal {merged_file_path}: {e}")

@@ -20,7 +20,7 @@ from src.transformation.spotify import transform_spotify_data
 from src.transformation.grammy import transform_grammy_data
 from src.merge.merge import merge_spotify_grammy
 from src.loading.load import load_to_db
-from src.store.store import storing_merged_data  # Nueva importación
+from src.store.store import store_to_drive # Nueva importación
 
 default_args = {
     'owner': 'airflow',
@@ -72,13 +72,11 @@ with DAG(
         python_callable=load_to_db,
         provide_context=True,
     )
-
-    # Nueva tarea para subir a Google Drive
+    
     store_to_drive_task = PythonOperator(
         task_id='store_to_drive',
-        python_callable=storing_merged_data,
-        op_kwargs={'title': 'merged_spotify_grammy.csv'},  # Nombre del archivo en Google Drive
-        provide_context=True,  # Para acceder al contexto y obtener el DataFrame
+        python_callable=store_to_drive,
+        provide_context=True,
     )
 
     # Definir dependencias
