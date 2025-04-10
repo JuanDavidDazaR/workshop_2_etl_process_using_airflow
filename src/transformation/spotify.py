@@ -5,9 +5,9 @@ The function performs the following transformations:
 1. Drops the 'Unnamed: 0' column if it exists.
 2. Removes rows with missing values.
 3. Removes duplicate rows.
-4. Groups the dataset by 'track_id', combines 'track_genre', and preserves all other columns.
-5. Calculates the mean popularity for each 'track_id' and categorizes it.
-6. Merges the transformed data back into the dataset, keeping all original columns.
+4. Groups the dataset by 'track_id', combines 'track_genre', and preserves other columns.
+5. Calculates the mean popularity for each 'track_id' and categorizes it into levels.
+6. Merges the transformed data back, ensuring no nulls remain.
 7. Saves the transformed dataset to a temporary CSV file and returns the file path.
 """
 
@@ -22,7 +22,7 @@ logger.setLevel(logging.DEBUG)
 if not logger.hasHandlers():
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        '%(asctime)s - %(name)s - %(message)s - %(levelname)s'
     )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
@@ -46,18 +46,21 @@ def transform_spotify_data(ti):
     df_spotify = pd.read_csv(tmp_file_path)
     logger.info("DataFrame leído exitosamente para transformación.")
 
-    # Transformaciones iniciales
+    # 1. Eliminar la columna 'Unnamed: 0' si existe
     if "Unnamed: 0" in df_spotify.columns:
         df_spotify = df_spotify.drop(columns=["Unnamed: 0"])
 
+    # 2. Eliminar filas con valores nulos o faltantes
     df_spotify = df_spotify.dropna()
+
+    # 3. Eliminar duplicados
     df_spotify = df_spotify.drop_duplicates()
 
-    # Agrupar por 'track_id', combinar 'track_genre' y preservar todas las demás columnas
+    # 4. Agrupar por 'track_id' y combinar 'track_genre'
     agg_dict = {
-        "track_genre": lambda x: ", ".join(set(x)),  # Combinar géneros
+        "track_genre": lambda x: ", ".join(set(x.dropna())),  # Combinar géneros únicos, ignorando nulos
     }
-    # Agregar todas las demás columnas con "first" para preservarlas
+    # Preservar otras columnas con 'first', pero solo si no son nulas
     for col in df_spotify.columns:
         if col not in ["track_id", "track_genre"]:
             agg_dict[col] = "first"
@@ -68,25 +71,33 @@ def transform_spotify_data(ti):
         .reset_index()
     )
 
-    # Calcular la popularidad promedio por 'track_id' y categorizarla
+    # 5. Calcular la popularidad promedio por 'track_id' y categorizarla
     df_popularity = (
-        df_spotify.groupby("track_id")["popularity"].mean().reset_index()
+        df_spotify.groupby("track_id")["popularity"]
+        .mean()
+        .reset_index()
+        .rename(columns={"popularity": "popularity_mean"})  # Renombrar para claridad
     )
     bins = [0, 20, 40, 60, 80, 100]
     labels = ["Very Low", "Low", "Medium", "High", "Very High"]
     df_popularity["popularity_category"] = pd.cut(
-        df_popularity["popularity"],
-        bins=bins, labels=labels, include_lowest=True
+        df_popularity["popularity_mean"],
+        bins=bins,
+        labels=labels,
+        include_lowest=True
     )
-    df_popularity = df_popularity.drop(columns=["popularity"])  # Eliminar la popularidad numérica
 
-    # Combinar las transformaciones con el DataFrame agrupado
+    # 6. Combinar las transformaciones con el DataFrame agrupado
     df_spotify_transformed = df_spotify_grouped.merge(
-        df_popularity[["track_id", "popularity_category"]],
-        on="track_id", how="left"
+        df_popularity[["track_id", "popularity_mean", "popularity_category"]],
+        on="track_id",
+        how="left"
     )
 
-    # Guardar el resultado en un archivo temporal CSV
+    # 7. Eliminar filas con valores nulos después de la transformación
+    df_spotify_transformed = df_spotify_transformed.dropna()
+
+    # 8. Guardar el resultado en un archivo temporal CSV
     with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
         df_spotify_transformed.to_csv(tmp_file.name, index=False)
         transformed_tmp_file_path = tmp_file.name

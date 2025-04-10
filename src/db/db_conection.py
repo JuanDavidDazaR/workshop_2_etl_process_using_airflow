@@ -28,3 +28,24 @@ def connect_db(db_name=None):
         )
 
     return create_engine(connection_url)
+
+
+def connect_db_load(db_name=None):
+    """Connection to the database."""
+    database = db_name if db_name else os.getenv("DB_NAME_LOAD")
+
+    user = os.getenv("DB_USER")
+    password = os.getenv("DB_PASSWORD")
+    host = os.getenv("DB_HOST")
+    port = os.getenv("DB_PORT")
+
+    connection_url = f"postgresql://{user}:{password}@{host}:\
+        {port}/{database}"
+
+    if not all([user, password, host, port, database]):
+        raise ValueError(
+            "Missing database configuration values.\
+                          Check your .env file."
+        )
+
+    return create_engine(connection_url)

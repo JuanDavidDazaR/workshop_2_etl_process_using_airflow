@@ -30,6 +30,7 @@ if not all([client_secrets_file, settings_file, credentials_file, folder_id]):
 logger.info(f"Using folder_id: {folder_id}")
 logger.info(f"Using settings_file: {settings_file}")
 
+
 # Función para autenticar Google Drive
 def auth_drive():
     try:

@@ -1,3 +1,4 @@
+# dags/dag.py
 """Initialization of the ETL pipeline for Grammy and Spotify data"""
 
 import os
@@ -16,11 +17,13 @@ if BASE_DIR not in sys.path:
 
 from src.extraction.read_csv import read_csv_spotify
 from src.extraction.read_db import extract_grammy_database
+from src.extraction.extract_api import extract_musicbrainz_artists
 from src.transformation.spotify import transform_spotify_data
 from src.transformation.grammy import transform_grammy_data
-from src.merge.merge import merge_spotify_grammy
+from src.transformation.api import transform_musicbrainz_data
+from src.merge.merge import merge_spotify_grammy_musicbrainz
 from src.loading.load import load_to_db
-from src.store.store import store_to_drive # Nueva importación
+from src.store.store import store_to_drive
 
 default_args = {
     'owner': 'airflow',
@@ -33,11 +36,24 @@ default_args = {
 with DAG(
     'etl_extract_transform',
     default_args=default_args,
-    description='ETL pipeline para extracción, transformación y carga de datos de Grammy y Spotify',
+    description='ETL pipeline para extracción, '
+    'transformación y carga de datos de Grammy y Spotify',
     schedule_interval=None,
     start_date=datetime(2025, 4, 8),
     catchup=False,
 ) as dag:
+
+    extract_api_task = PythonOperator(
+        task_id="extract_api_artists",
+        python_callable=extract_musicbrainz_artists,
+        op_kwargs={"num_artists": 100}
+    )
+
+    transform_api_task = PythonOperator(
+        task_id="transform_api",
+        python_callable=transform_musicbrainz_data,
+        op_kwargs={"input_file": "{{ ti.xcom_pull(task_ids='extract_api_artists') }}"}
+    )
 
     extract_spotify_task = PythonOperator(
         task_id='read_csv',
@@ -63,7 +79,7 @@ with DAG(
 
     merge_task = PythonOperator(
         task_id='merge_spotify_grammy',
-        python_callable=merge_spotify_grammy,
+        python_callable=merge_spotify_grammy_musicbrainz,
         provide_context=True,
     )
 
@@ -72,17 +88,16 @@ with DAG(
         python_callable=load_to_db,
         provide_context=True,
     )
-    
+
     store_to_drive_task = PythonOperator(
         task_id='store_to_drive',
         python_callable=store_to_drive,
         provide_context=True,
     )
 
-    # Definir dependencias
+    extract_api_task >> transform_api_task
     extract_spotify_task >> transform_spotify_task
     extract_grammy_task >> transform_grammy_task
-    [transform_spotify_task, transform_grammy_task] >> merge_task
+    [transform_spotify_task, transform_grammy_task, transform_api_task] >> merge_task
     merge_task >> load_task
-    load_task >> store_to_drive_task  # Nueva dependencia
-
+    load_task >> store_to_drive_task

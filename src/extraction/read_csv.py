@@ -16,9 +16,11 @@ if not logger.hasHandlers():
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
+
 def read_csv_spotify():
     """
-    Reads the Spotify dataset from a CSV file and saves it to a temporary CSV file.
+    Reads the Spotify dataset from a CSV file
+    and saves it to a temporary CSV file.
 
     Returns:
         str: Path to the temporary file where the DataFrame is saved as CSV.
