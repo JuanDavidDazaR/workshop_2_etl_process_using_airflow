@@ -104,6 +104,7 @@ def transform_spotify_data(ti):
 
     # 8. Eliminar filas con valores nulos después de la transformación
     df_spotify_transformed = df_spotify_transformed.dropna()
+    df_spotify_transformed = df_spotify_transformed.drop(columns=["popularity"])
 
     # 9. Guardar el resultado en un archivo temporal CSV
     with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
