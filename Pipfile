@@ -12,14 +12,20 @@ pre-commit = "*"
 
 [packages]
 wandb = "*"
-pandas = "*"
-numpy = "*"
+pandas = "2.1.4"
+numpy = "1.26.4"
 scipy = "*"
 seaborn = "*"
 jupyterlab = "*"
 python-dotenv = "*"
 sqlalchemy = "*"
 psycopg2-binary = "*"
+pandas-stubs = "*"
+prince = "*"
+pytest = "*"
+pytest-cov = "*"
+pytest-mock = "*"
+SQLAlchemy = "<2.0"
 
 [requires]
 python_version = "3"
