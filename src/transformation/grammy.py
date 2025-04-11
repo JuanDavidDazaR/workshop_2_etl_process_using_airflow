@@ -1,6 +1,7 @@
 """Transformation module for Grammy Awards data.
 This module contains functions to transform the Grammy Awards data
-by cleaning and selecting relevant columns, then saving to a temporary CSV file.
+by cleaning, converting text to lowercase, selecting relevant columns, 
+and saving to a temporary CSV file.
 """
 
 import pandas as pd
@@ -23,6 +24,7 @@ def transform_grammy_data(ti):
     """
     Transforms the Grammy Awards data by:
     - Dropping rows with any null values.
+    - Converting all text columns to lowercase.
     - Keeping only selected relevant columns.
     - Saving the transformed data to a temporary CSV file.
 
@@ -43,9 +45,18 @@ def transform_grammy_data(ti):
 
     # Transformaciones en memoria
     logger.info("Transformando datos de Grammy...")
-    df_grammy = df_grammy.dropna()  # Eliminar filas con valores nulos
+
+    # 1. Eliminar filas con valores nulos
+    df_grammy = df_grammy.dropna()
+
+    # 2. Convertir todas las columnas de texto a minúsculas
+    text_columns = df_grammy.select_dtypes(include=['object']).columns
+    for col in text_columns:
+        df_grammy[col] = df_grammy[col].str.lower()
+
+    # 3. Seleccionar columnas relevantes
     selected_columns = ["year", "title", "category", "nominee", "artist", "winner"]
-    df_grammy = df_grammy[selected_columns]  # Seleccionar columnas relevantes
+    df_grammy = df_grammy[selected_columns]
 
     # Guardar el DataFrame transformado en un archivo temporal CSV
     with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:

@@ -1,10 +1,9 @@
-# dags/dag.py
 """Initialization of the ETL pipeline for Grammy and Spotify data"""
 
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
@@ -36,17 +35,16 @@ default_args = {
 with DAG(
     'etl_extract_transform',
     default_args=default_args,
-    description='ETL pipeline para extracción, '
-    'transformación y carga de datos de Grammy y Spotify',
-    schedule_interval=None,
-    start_date=datetime(2025, 4, 8),
+    description='ETL pipeline para extracción, transformación y carga de datos de Grammy y Spotify',
+    schedule=None,  # Reemplaza schedule_interval
+    start_date=datetime.now() - timedelta(days=1),  # Fecha en el pasado
     catchup=False,
 ) as dag:
 
     extract_api_task = PythonOperator(
         task_id="extract_api_artists",
         python_callable=extract_musicbrainz_artists,
-        op_kwargs={"num_artists": 100}
+        op_kwargs={"num_artists": 2000}
     )
 
     transform_api_task = PythonOperator(
@@ -63,7 +61,6 @@ with DAG(
     transform_spotify_task = PythonOperator(
         task_id='transform_spotify',
         python_callable=transform_spotify_data,
-        provide_context=True,
     )
 
     extract_grammy_task = PythonOperator(
@@ -74,25 +71,21 @@ with DAG(
     transform_grammy_task = PythonOperator(
         task_id='transform_grammy',
         python_callable=transform_grammy_data,
-        provide_context=True,
     )
 
     merge_task = PythonOperator(
         task_id='merge_spotify_grammy',
         python_callable=merge_spotify_grammy_musicbrainz,
-        provide_context=True,
     )
 
     load_task = PythonOperator(
         task_id='load_to_db',
         python_callable=load_to_db,
-        provide_context=True,
     )
 
     store_to_drive_task = PythonOperator(
         task_id='store_to_drive',
         python_callable=store_to_drive,
-        provide_context=True,
     )
 
     extract_api_task >> transform_api_task

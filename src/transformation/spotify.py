@@ -5,10 +5,11 @@ The function performs the following transformations:
 1. Drops the 'Unnamed: 0' column if it exists.
 2. Removes rows with missing values.
 3. Removes duplicate rows.
-4. Groups the dataset by 'track_id', combines 'track_genre', and preserves other columns.
-5. Calculates the mean popularity for each 'track_id' and categorizes it into levels.
-6. Merges the transformed data back, ensuring no nulls remain.
-7. Saves the transformed dataset to a temporary CSV file and returns the file path.
+4. Converts all text columns to lowercase.
+5. Groups the dataset by 'track_id', combines 'track_genre', and preserves other columns.
+6. Calculates the mean popularity for each 'track_id', categorizes it into levels, and drops the mean.
+7. Merges the transformed data back, ensuring no nulls remain.
+8. Saves the transformed dataset to a temporary CSV file and returns the file path.
 """
 
 import logging
@@ -56,11 +57,16 @@ def transform_spotify_data(ti):
     # 3. Eliminar duplicados
     df_spotify = df_spotify.drop_duplicates()
 
-    # 4. Agrupar por 'track_id' y combinar 'track_genre'
+    # 4. Convertir todas las columnas de texto a minúsculas
+    text_columns = df_spotify.select_dtypes(include=['object']).columns
+    for col in text_columns:
+        df_spotify[col] = df_spotify[col].str.lower()
+
+    # 5. Agrupar por 'track_id' y combinar 'track_genre'
     agg_dict = {
         "track_genre": lambda x: ", ".join(set(x.dropna())),  # Combinar géneros únicos, ignorando nulos
     }
-    # Preservar otras columnas con 'first', pero solo si no son nulas
+    # Preservar otras columnas con 'first'
     for col in df_spotify.columns:
         if col not in ["track_id", "track_genre"]:
             agg_dict[col] = "first"
@@ -71,7 +77,7 @@ def transform_spotify_data(ti):
         .reset_index()
     )
 
-    # 5. Calcular la popularidad promedio por 'track_id' y categorizarla
+    # 6. Calcular la popularidad promedio por 'track_id', categorizarla y eliminar el promedio
     df_popularity = (
         df_spotify.groupby("track_id")["popularity"]
         .mean()
@@ -79,25 +85,27 @@ def transform_spotify_data(ti):
         .rename(columns={"popularity": "popularity_mean"})  # Renombrar para claridad
     )
     bins = [0, 20, 40, 60, 80, 100]
-    labels = ["Very Low", "Low", "Medium", "High", "Very High"]
+    labels = ["very low", "low", "medium", "high", "very high"]  # También en minúsculas
     df_popularity["popularity_category"] = pd.cut(
         df_popularity["popularity_mean"],
         bins=bins,
         labels=labels,
         include_lowest=True
     )
+    # Eliminar la columna 'popularity_mean' después de categorizar
+    df_popularity = df_popularity.drop(columns=["popularity_mean"])
 
-    # 6. Combinar las transformaciones con el DataFrame agrupado
+    # 7. Combinar las transformaciones con el DataFrame agrupado
     df_spotify_transformed = df_spotify_grouped.merge(
-        df_popularity[["track_id", "popularity_mean", "popularity_category"]],
+        df_popularity[["track_id", "popularity_category"]],
         on="track_id",
         how="left"
     )
 
-    # 7. Eliminar filas con valores nulos después de la transformación
+    # 8. Eliminar filas con valores nulos después de la transformación
     df_spotify_transformed = df_spotify_transformed.dropna()
 
-    # 8. Guardar el resultado en un archivo temporal CSV
+    # 9. Guardar el resultado en un archivo temporal CSV
     with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
         df_spotify_transformed.to_csv(tmp_file.name, index=False)
         transformed_tmp_file_path = tmp_file.name

@@ -21,6 +21,7 @@ if not logger.hasHandlers():
 def merge_spotify_grammy_musicbrainz(ti):
     """
     Merge transformed Spotify, Grammy, and MusicBrainz datasets.
+    After merging, drops columns with 50% or more null values.
 
     Args:
         ti: Task instance to pull file paths from XCom.
@@ -31,7 +32,7 @@ def merge_spotify_grammy_musicbrainz(ti):
     # Obtener las rutas de los archivos desde XCom
     spotify_file_path = ti.xcom_pull(task_ids='transform_spotify')
     grammy_file_path = ti.xcom_pull(task_ids='transform_grammy')
-    musicbrainz_file_path = ti.xcom_pull(task_ids='transform_api')  # Cambiado a 'transform_api'
+    musicbrainz_file_path = ti.xcom_pull(task_ids='transform_api')
 
     # Verificar que todos los archivos estén presentes
     if not all([spotify_file_path, grammy_file_path, musicbrainz_file_path]):
@@ -75,6 +76,16 @@ def merge_spotify_grammy_musicbrainz(ti):
 
     # Rellenar valores NaN en 'winner' (de Grammy)
     final_merged_df['winner'] = final_merged_df['winner'].fillna(False)
+
+    # Eliminar columnas con 50% o más de valores nulos
+    threshold = 0.85  # 50% de valores nulos
+    total_rows = len(final_merged_df)
+    null_counts = final_merged_df.isnull().sum()
+    columns_to_drop = [col for col in final_merged_df.columns if null_counts[col] / total_rows >= threshold]
+    
+    if columns_to_drop:
+        logger.info(f"Eliminando columnas con 85% o más de valores nulos: {columns_to_drop}")
+        final_merged_df = final_merged_df.drop(columns=columns_to_drop)
 
     # Guardar el resultado en un archivo temporal (como CSV)
     with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
