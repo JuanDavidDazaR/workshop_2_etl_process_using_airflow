@@ -1,4 +1,3 @@
-# src/merge/merge.py
 """Module to merge Spotify, Grammy Awards, and MusicBrainz datasets."""
 
 import logging
@@ -21,7 +20,8 @@ if not logger.hasHandlers():
 def merge_spotify_grammy_musicbrainz(ti):
     """
     Merge transformed Spotify, Grammy, and MusicBrainz datasets.
-    After merging, drops columns with 50% or more null values.
+    Performs two merges with Grammy: first by 'artist', then by 'nominee'.
+    Drops columns with 85% or more null values.
 
     Args:
         ti: Task instance to pull file paths from XCom.
@@ -47,45 +47,95 @@ def merge_spotify_grammy_musicbrainz(ti):
     logger.info(f"Leyendo MusicBrainz desde: {musicbrainz_file_path}")
     musicbrainz_df = pd.read_csv(musicbrainz_file_path)
 
-    # Limpiar columnas de artistas para el merge
+    # Limpiar columnas para el merge
     spotify_df['artists'] = spotify_df['artists'].str.lower().str.strip()
     grammy_df['artist'] = grammy_df['artist'].str.lower().str.strip()
+    grammy_df['nominee'] = grammy_df['nominee'].str.lower().str.strip()
     musicbrainz_df['name'] = musicbrainz_df['name'].str.lower().str.strip()
 
-    # Primer merge: Spotify con Grammy
-    merged_df = pd.merge(
+    # Primer merge: Spotify con Grammy por 'artists' y 'artist'
+    merge_by_artist = pd.merge(
         spotify_df,
         grammy_df,
         how='left',
         left_on=['artists'],
-        right_on=['artist']
+        right_on=['artist'],
+        suffixes=('', '_artist')
     )
-    # Eliminar columna redundante 'artist' de Grammy
-    merged_df = merged_df.drop(columns=['artist'], errors='ignore')
+    logger.info(f"Primer merge (por artist): {len(merge_by_artist)} filas")
 
-    # Segundo merge: Resultado anterior con MusicBrainz
+    # Eliminar columna redundante 'artist' de Grammy
+    merge_by_artist = merge_by_artist.drop(columns=['artist'], errors='ignore')
+
+    # Segundo merge: Resultado anterior con Grammy por 'artists' y 'nominee'
+    merge_by_nominee = pd.merge(
+        merge_by_artist,
+        grammy_df,
+        how='left',
+        left_on=['artists'],
+        right_on=['nominee'],
+        suffixes=('', '_nominee')
+    )
+    logger.info(f"Segundo merge (por nominee): {len(merge_by_nominee)} filas")
+
+    # Eliminar columna redundante 'nominee' de Grammy
+    merge_by_nominee = merge_by_nominee.drop(columns=['nominee'], errors='ignore')
+
+    # Combinar columnas duplicadas, asegurando que 'nominated' se preserve
+    for col in grammy_df.columns:
+        if col in ['artist', 'nominee']:
+            continue
+        col_nominee = f"{col}_nominee"
+        if col_nominee in merge_by_nominee.columns:
+            if col not in merge_by_nominee.columns:
+                merge_by_nominee[col] = merge_by_nominee[col_nominee]  # Crear si no existe
+            else:
+                merge_by_nominee[col] = merge_by_nominee[col].fillna(merge_by_nominee[col_nominee])
+            merge_by_nominee = merge_by_nominee.drop(columns=[col_nominee])
+
+    # Tercer merge: Resultado con MusicBrainz por 'artists' y 'name'
     final_merged_df = pd.merge(
-        merged_df,
+        merge_by_nominee,
         musicbrainz_df,
         how='left',
         left_on=['artists'],
         right_on=['name']
     )
+    logger.info(f"Tercer merge (con MusicBrainz): {len(final_merged_df)} filas")
+
     # Eliminar columna redundante 'name' de MusicBrainz
     final_merged_df = final_merged_df.drop(columns=['name'], errors='ignore')
 
-    # Rellenar valores NaN en 'winner' (de Grammy)
-    final_merged_df['winner'] = final_merged_df['winner'].fillna(False)
+    # Rellenar valores NaN en 'winner' y 'nominated', creando 'nominated' si no existe
+    if 'winner' not in final_merged_df.columns:
+        final_merged_df['winner'] = False
+    else:
+        final_merged_df['winner'] = final_merged_df['winner'].fillna(False)
 
-    # Eliminar columnas con 50% o más de valores nulos
-    threshold = 0.85  # 50% de valores nulos
+    # Eliminar columnas con 85% o más de valores nulos, excluyendo 'country' y 'type'
+    threshold = 0.85
     total_rows = len(final_merged_df)
     null_counts = final_merged_df.isnull().sum()
-    columns_to_drop = [col for col in final_merged_df.columns if null_counts[col] / total_rows >= threshold]
+    columns_to_drop = [col for col in final_merged_df.columns 
+                       if null_counts[col] / total_rows >= threshold 
+                       and col not in ['country', 'type']]
     
     if columns_to_drop:
         logger.info(f"Eliminando columnas con 85% o más de valores nulos: {columns_to_drop}")
         final_merged_df = final_merged_df.drop(columns=columns_to_drop)
+
+    # Asegurar que 'country' y 'type' estén presentes, rellenando NaN si es necesario
+    if 'country' not in final_merged_df.columns:
+        logger.warning("'country' no está en el DataFrame final. Creándola con 'N/A'.")
+        final_merged_df['country'] = 'N/A'
+    else:
+        final_merged_df['country'] = final_merged_df['country'].fillna('N/A')
+
+    if 'type' not in final_merged_df.columns:
+        logger.warning("'type' no está en el DataFrame final. Creándola con 'N/A'.")
+        final_merged_df['type'] = 'N/A'
+    else:
+        final_merged_df['type'] = final_merged_df['type'].fillna('N/A')
 
     # Guardar el resultado en un archivo temporal (como CSV)
     with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
