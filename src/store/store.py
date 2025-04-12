@@ -1,4 +1,3 @@
-# src/store.py
 """Module to store data in Google Drive."""
 
 import logging
